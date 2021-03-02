@@ -30,6 +30,11 @@ wheels/
 .installed.cfg
 *.egg
 
+# Image folders 
+ship_images/old_dataset/
+ship_images/py_out/
+ship_images/videos/
+
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
