@@ -9,6 +9,8 @@ import skimage.io
 import matplotlib
 import matplotlib.pyplot as plt
 import xml.etree.ElementTree as ET
+import json
+import cv2
 import tensorflow.compat.v1 as tf
 tf.disable_v2_behavior()
 
@@ -39,59 +41,103 @@ if not os.path.exists(COCO_MODEL_PATH):
 IMAGE_DIR = "ship_images"
 TEST_DIR = os.path.join(IMAGE_DIR, 'images/test')
 
+#region boxes annotation
+# class shipDetectDataset(utils.Dataset):
+#     def load_dataset(self, dataset_dir):
+#         self.add_class('dataset', 1, 'ship')
+
+#         # find all images
+#         for i, filename in enumerate(os.listdir(dataset_dir)):
+#             if '.png' in filename:
+#                 self.add_image('dataset',
+#                                image_id=i,
+#                                path=os.path.join(dataset_dir, filename),
+#                                annotation=os.path.join(dataset_dir, filename.replace('.png', '.xml')))
+
+#     # extract bounding boxes from an annotation file
+#     def extract_boxes(self, filename):
+#         # load and parse the file
+#         tree = ET.parse(filename)
+#         # get the root of the document
+#         root = tree.getroot()
+#         # extract each bounding box
+#         boxes = []
+#         classes = []
+#         for member in root.findall('object'):
+#             xmin = int(member[4][0].text)
+#             ymin = int(member[4][1].text)
+#             xmax = int(member[4][2].text)
+#             ymax = int(member[4][3].text)
+#             boxes.append([xmin, ymin, xmax, ymax])
+#             classes.append(self.class_names.index(member[0].text))
+#         # extract image dimensions
+#         width = int(root.find('size')[0].text)
+#         height = int(root.find('size')[1].text)
+#         return boxes, classes, width, height
+
+#     def load_mask(self, image_id):
+#         # get details of image
+#         info = self.image_info[image_id]
+#         # define box file location
+#         path = info['annotation']
+#         # load XML
+#         boxes, classes, w, h = self.extract_boxes(path)
+#         # create one array for all masks, each on a different channel
+#         masks = np.zeros([h, w, len(boxes)], dtype='uint8')
+#         # create masks
+#         for i in range(len(boxes)):
+#             box = boxes[i]
+#             row_s, row_e = box[1], box[3]
+#             col_s, col_e = box[0], box[2]
+#             masks[row_s:row_e, col_s:col_e, i] = 1
+#         return masks, np.asarray(classes, dtype='int32')
+    
+#     def image_reference(self, image_id):
+#         info = self.image_info[image_id]
+#         return info['path']
+#endregion
+
+#region polygon annotation
 class shipDetectDataset(utils.Dataset):
     def load_dataset(self, dataset_dir):
         self.add_class('dataset', 1, 'ship')
-
+        
         # find all images
         for i, filename in enumerate(os.listdir(dataset_dir)):
-            if '.png' in filename:
+            if '.jpg' in filename:
                 self.add_image('dataset',
                                image_id=i,
                                path=os.path.join(dataset_dir, filename),
-                               annotation=os.path.join(dataset_dir, filename.replace('.png', '.xml')))
-
-    # extract bounding boxes from an annotation file
-    def extract_boxes(self, filename):
-        # load and parse the file
-        tree = ET.parse(filename)
-        # get the root of the document
-        root = tree.getroot()
-        # extract each bounding box
-        boxes = []
+                               annotation=os.path.join(dataset_dir, filename.replace('.jpg', '.json')))
+    
+    def extract_masks(self, filename):
+        json_file = os.path.join(filename)
+        with open(json_file) as f:
+            img_anns = json.load(f)
+            
+        masks = np.zeros([400, 640, len(img_anns['shapes'])], dtype='uint8')
         classes = []
-        for member in root.findall('object'):
-            xmin = int(member[4][0].text)
-            ymin = int(member[4][1].text)
-            xmax = int(member[4][2].text)
-            ymax = int(member[4][3].text)
-            boxes.append([xmin, ymin, xmax, ymax])
-            classes.append(self.class_names.index(member[0].text))
-        # extract image dimensions
-        width = int(root.find('size')[0].text)
-        height = int(root.find('size')[1].text)
-        return boxes, classes, width, height
-
+        for i, anno in enumerate(img_anns['shapes']):
+            mask = np.zeros([400, 640], dtype=np.uint8)
+            cv2.fillPoly(mask, np.array([anno['points']], dtype=np.int32), 1)
+            masks[:, :, i] = mask
+            classes.append(self.class_names.index(anno['label']))
+        return masks, classes
+ 
+    # load the masks for an image
     def load_mask(self, image_id):
         # get details of image
         info = self.image_info[image_id]
         # define box file location
         path = info['annotation']
-        # load XML
-        boxes, classes, w, h = self.extract_boxes(path)
-        # create one array for all masks, each on a different channel
-        masks = np.zeros([h, w, len(boxes)], dtype='uint8')
-        # create masks
-        for i in range(len(boxes)):
-            box = boxes[i]
-            row_s, row_e = box[1], box[3]
-            col_s, col_e = box[0], box[2]
-            masks[row_s:row_e, col_s:col_e, i] = 1
+        # load json
+        masks, classes = self.extract_masks(path)
         return masks, np.asarray(classes, dtype='int32')
     
     def image_reference(self, image_id):
         info = self.image_info[image_id]
         return info['path']
+# endregion
 
 
 # Create training and validation set
@@ -140,7 +186,7 @@ class shipDetectConfig(Config):
 config = shipDetectConfig()
 config.display()
 
-train_flag = True
+train_flag = False
 
 if train_flag:
     # Create model in training mode
@@ -252,8 +298,7 @@ results = model.detect([test_image], verbose=1)
 r = results[0]
 visualize.display_instances(test_image, r['rois'], r['masks'], r['class_ids'],
                             dataset_val.class_names, r['scores'], figsize=(8, 8))
-sys.exit()
-
+#sys.exit()
 
 class InferenceConfig(coco.CocoConfig):
     # Set batch size to 1 since we'll be running inference on
