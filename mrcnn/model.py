@@ -16,12 +16,14 @@ import logging
 from collections import OrderedDict
 import multiprocessing
 import numpy as np
-import tensorflow as tf
+#import tensorflow as tf
+import tensorflow.compat.v1 as tf
 import keras
 import keras.backend as K
 import keras.layers as KL
 import keras.engine as KE
 import keras.models as KM
+#from tensorflow.python.keras.saving import hdf5_format
 
 from mrcnn import utils
 
@@ -751,7 +753,7 @@ def refine_detections_graph(rois, probs, deltas, window, config):
 
     # 2. Map over class IDs
     nms_keep = tf.map_fn(nms_keep_map, unique_pre_nms_class_ids,
-                         dtype=tf.int64)
+                         fn_output_signature=tf.int64)
     # 3. Merge results into one list, and remove -1 padding
     nms_keep = tf.reshape(nms_keep, [-1])
     nms_keep = tf.gather(nms_keep, tf.where(nms_keep > -1)[:, 0])
@@ -2131,10 +2133,12 @@ class MaskRCNN():
         if exclude:
             layers = filter(lambda l: l.name not in exclude, layers)
 
-        if by_name:
-            saving.load_weights_from_hdf5_group_by_name(f, layers)
-        else:
-            saving.load_weights_from_hdf5_group(f, layers)
+        # mwm uncommented this and put the single line below 
+        # if by_name:
+        #     saving.load_weights_from_hdf5_group_by_name(f, layers)
+        # else:
+        #     saving.load_weights_from_hdf5_group(f, layers)
+        keras_model.load_weights(filepath, by_name=by_name)
         if hasattr(f, 'close'):
             f.close()
 

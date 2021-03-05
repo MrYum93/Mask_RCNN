@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.7
 
 import os
 import sys
@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 import json
 import cv2
 import tensorflow.compat.v1 as tf
-tf.disable_v2_behavior()
+# tf.disable_v2_behavior()
 
 # Root directory of the project
 ROOT_DIR = os.path.abspath("../")
@@ -40,6 +40,8 @@ if not os.path.exists(COCO_MODEL_PATH):
 # Directory of images to run detection on
 IMAGE_DIR = "ship_images"
 TEST_DIR = os.path.join(IMAGE_DIR, 'images/test')
+TRAIN_DIR = os.path.join(IMAGE_DIR, 'images/train')
+TVAL_DIR = os.path.join(IMAGE_DIR, 'images/val')
 
 #region boxes annotation
 # class shipDetectDataset(utils.Dataset):
@@ -281,6 +283,8 @@ visualize.display_instances(original_image, r['rois'], r['masks'], r['class_ids'
 #   Get the filenames in the test folder
 file_names = next(os.walk(TEST_DIR))[2]
 
+print("displaying the result of image: {}, {}, {}".format(file_names[0], file_names[1], file_names[2]))
+
 test_image = skimage.io.imread(os.path.join(TEST_DIR, file_names[0]))
 results = model.detect([test_image], verbose=1)
 r = results[0]
@@ -298,7 +302,7 @@ results = model.detect([test_image], verbose=1)
 r = results[0]
 visualize.display_instances(test_image, r['rois'], r['masks'], r['class_ids'],
                             dataset_val.class_names, r['scores'], figsize=(8, 8))
-#sys.exit()
+sys.exit()
 
 class InferenceConfig(coco.CocoConfig):
     # Set batch size to 1 since we'll be running inference on
@@ -333,9 +337,9 @@ model = modellib.MaskRCNN(mode="inference", model_dir=MODEL_DIR, config=config)
 model.load_weights(COCO_MODEL_PATH, by_name=True)
 
 # Load a random image from the images folder
-file_names = next(os.walk(IMAGE_DIR))[2]
-print(next(os.walk(IMAGE_DIR)))
-image = skimage.io.imread(os.path.join(IMAGE_DIR, random.choice(file_names)))
+file_names = next(os.walk(TEST_DIR))[2]
+print(next(os.walk(TEST_DIR)))
+image = skimage.io.imread(os.path.join(TEST_DIR, random.choice(file_names)))
 
 # Run detection
 results = model.detect([image], verbose=1)
