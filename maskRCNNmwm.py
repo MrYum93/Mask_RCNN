@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 import json
 import cv2
 import tensorflow.compat.v1 as tf
-# tf.disable_v2_behavior()
+tf.disable_v2_behavior() 
 
 # Root directory of the project
 ROOT_DIR = os.path.abspath("../")
@@ -161,15 +161,15 @@ dataset_test.load_dataset('ship_images/images/test')
 dataset_test.prepare()
 print('Test: %d' % len(dataset_test.image_ids))
 
-# # Load and display random samples
+# Load and display random samples
 # image_ids = np.random.choice(dataset_train.image_ids, 4)
 # for image_id in image_ids:
 #     image = dataset_train.load_image(image_id)
 #     mask, class_ids = dataset_train.load_mask(image_id)
 #     visualize.display_top_masks(image, mask, class_ids, dataset_train.class_names)
 
-# config = Config()
-# config.display()
+config = Config()
+config.display()
 
 
 class shipDetectConfig(Config):
@@ -178,24 +178,24 @@ class shipDetectConfig(Config):
 
     GPU_COUNT = 1
     IMAGES_PER_GPU = 1
-    STEPS_PER_EPOCH = 50
+    # STEPS_PER_EPOCH = 50
 
-    IMAGE_MAX_DIM = 640
-    IMAGE_MIN_DIM = 400
+    # IMAGE_MAX_DIM = 640
+    # IMAGE_MIN_DIM = 400
 #    IMAGE_SHAPE = np.array([640, 400, 3])
 
 
 config = shipDetectConfig()
 config.display()
 
-train_flag = False
+train_flag = True
 
 if train_flag:
     # Create model in training mode
     model = modellib.MaskRCNN(mode="training", config=config, model_dir=MODEL_DIR)
 
     # Which weights to start with?
-    init_with = "last"  # imagenet, coco, or last
+    init_with = "coco"  # imagenet, coco, or last
 
     if init_with == "imagenet":
         model.load_weights(model.get_imagenet_weights(), by_name=True)
@@ -204,8 +204,7 @@ if train_flag:
         # are different due to the different number of classes
         # See README for instructions to download the COCO weights
         model.load_weights(COCO_MODEL_PATH, by_name=True,
-                           exclude=["mrcnn_class_logits", "mrcnn_bbox_fc",
-                                    "mrcnn_bbox", "mrcnn_mask"])
+                           exclude=["mrcnn_class_logits", "mrcnn_bbox_fc", "mrcnn_bbox", "mrcnn_mask"])
     elif init_with == "last":
         # Load the last model you trained and continue training
         model.load_weights(model.find_last(), by_name=True)
@@ -216,7 +215,7 @@ if train_flag:
     # which layers to train by name pattern.
     model.train(dataset_train, dataset_val,
                 learning_rate=config.LEARNING_RATE,
-                epochs=5,
+                epochs=5, #  orig: 5
                 layers='heads')
 
     # Fine tune all layers
@@ -225,7 +224,7 @@ if train_flag:
     # train by name pattern.
     model.train(dataset_train, dataset_val,
                 learning_rate=config.LEARNING_RATE / 10,
-                epochs=10,
+                epochs=10, #  orig: 10
                 layers="all")
 
 
