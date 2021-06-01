@@ -21,6 +21,8 @@ import numpy as np
 import tensorflow.compat.v1 as tf
 tf.disable_v2_behavior()
 tf.compat.v1.disable_eager_execution()
+tf.compat.v1.placeholder()
+
 import keras
 #mwm 1, 1
 # import tensorflow.keras as keras
