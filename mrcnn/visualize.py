@@ -15,10 +15,16 @@ import colorsys
 
 import numpy as np
 from skimage.measure import find_contours
+import tkinter
 import matplotlib.pyplot as plt
 from matplotlib import patches,  lines
 from matplotlib.patches import Polygon
 import IPython.display
+
+import matplotlib
+#matplotlib.use('tkagg')
+matplotlib.use('TkAgg')
+
 
 # Root directory of the project
 ROOT_DIR = os.path.abspath("../")

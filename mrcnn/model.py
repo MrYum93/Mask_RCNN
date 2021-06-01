@@ -16,11 +16,18 @@ import logging
 from collections import OrderedDict
 import multiprocessing
 import numpy as np
-import tensorflow as tf
+# import tensorflow as tf
+#mwm 1, 3
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 tf.compat.v1.disable_eager_execution()
 import keras
+#mwm 1, 1
+# import tensorflow.keras as keras
+#from tensorflow.keras import backend as K
 import keras.backend as K
 import keras.layers as KL
+#from keras import engine as KE
 import keras.engine as KE
 import keras.models as KM
 
@@ -551,12 +558,12 @@ def detection_targets_graph(proposals, gt_class_ids, gt_boxes, gt_masks, config)
     # Positive ROIs
     positive_count = int(config.TRAIN_ROIS_PER_IMAGE *
                          config.ROI_POSITIVE_RATIO)
-    positive_indices = tf.random.shuffle(positive_indices)[:positive_count]
+    positive_indices = tf.random_shuffle(positive_indices)[:positive_count]
     positive_count = tf.shape(positive_indices)[0]
     # Negative ROIs. Add enough to maintain positive:negative ratio.
     r = 1.0 / config.ROI_POSITIVE_RATIO
     negative_count = tf.cast(r * tf.cast(positive_count, tf.float32), tf.int32) - positive_count
-    negative_indices = tf.random.shuffle(negative_indices)[:negative_count]
+    negative_indices = tf.random_shuffle(negative_indices)[:negative_count]
     # Gather selected ROIs
     positive_rois = tf.gather(proposals, positive_indices)
     negative_rois = tf.gather(proposals, negative_indices)
@@ -700,7 +707,10 @@ def refine_detections_graph(rois, probs, deltas, window, config):
     # Class IDs per ROI
     class_ids = tf.argmax(probs, axis=1, output_type=tf.int32)
     # Class probability of the top class of each ROI
-    indices = tf.stack([tf.range(probs.shape[0]), class_ids], axis=1)
+    # indices = tf.stack([tf.range(probs.shape[0]), class_ids], axis=1)
+    #mwm 1,1
+    indices = tf.stack([tf.range(tf.shape(probs)[0]), class_ids], axis = 1)
+
     class_scores = tf.gather_nd(probs, indices)
     # Class-specific bounding box deltas
     deltas_specific = tf.gather_nd(deltas, indices)
@@ -949,12 +959,15 @@ def fpn_classifier_graph(rois, feature_maps, image_meta,
                            name='mrcnn_bbox_fc')(shared)
     # Reshape to [batch, num_rois, NUM_CLASSES, (dy, dx, log(dh), log(dw))]
     s = K.int_shape(x)
-    # mrcnn_bbox = KL.Reshape((s[1], num_classes, 4), name="mrcnn_bbox")(x)
+    #mrcnn_bbox = KL.Reshape((s[1], num_classes, 4), name="mrcnn_bbox")(x)
     #mwm 1, 4
-    if s[1] == None:
-        mrcnn_bbox = KL.Reshape((-1, num_classes, 4), name="mrcnn_bbox")(x)
-    else:
-        mrcnn_bbox = KL.Reshape((s[1], num_classes, 4), name="mrcnn_bbox")(x)
+    # if s[1] == None:
+        # mrcnn_bbox = KL.Reshape((-1, num_classes, 4), name="mrcnn_bbox")(x)
+    # else:
+        # mrcnn_bbox = KL.Reshape((s[1], num_classes, 4), name="mrcnn_bbox")(x)
+    #mwm 4,1 (again)
+    mrcnn_bbox = KL.Reshape((-1, num_classes, 4), name="mrcnn_bbox")(x)
+
 
     return mrcnn_class_logits, mrcnn_probs, mrcnn_bbox
 
@@ -2135,12 +2148,12 @@ class MaskRCNN():
         if exclude:
             layers = filter(lambda l: l.name not in exclude, layers)
 
-        # if by_name:
-        #     saving.load_weights_from_hdf5_group_by_name(f, layers)
-        # else:
-        #     saving.load_weights_from_hdf5_group(f, layers)
-        #mwm 4, 1
-        print("keras_model.load_weights(filepath, by_name={})".format(by_name))
+        #if by_name:
+        #    saving.load_weights_from_hdf5_group_by_name(f, layers)
+        #else:
+        #    saving.load_weights_from_hdf5_group(f, layers)
+        #mwm 4, 2
+        # print("keras_model.load_weights(filepath, by_name={})".format(by_name))
         keras_model.load_weights(filepath, by_name=by_name, skip_mismatch=by_name)
         if hasattr(f, 'close'):
             f.close()
@@ -2172,6 +2185,7 @@ class MaskRCNN():
             clipnorm=self.config.GRADIENT_CLIP_NORM)
         # Add Losses
         # First, clear previously set losses to avoid duplication
+        #mwm 0,2
         # self.keras_model._losses = []
         # self.keras_model._per_input_losses = {}
         loss_names = [
@@ -2182,12 +2196,13 @@ class MaskRCNN():
             if layer.output in self.keras_model.losses:
                 continue
             # loss = (
-            #     tf.reduce_mean(layer.output, keepdims=True)
-            #     * self.config.LOSS_WEIGHTS.get(name, 1.))
-            #mwm 3,1
-            loss = tf.reduce_mean(layer.output, keepdims=True)
-            # print("loss: {}".format(loss))
+                # tf.reduce_mean(layer.output, keepdims=True)
+                # * self.config.LOSS_WEIGHTS.get(name, 1.))
             # self.keras_model.add_loss(loss)
+            #mwm 4,3
+            loss = tf.reduce_mean(input_tensor=layer.output, keepdims=True)
+            print("loss: {}".format(loss))
+            self.keras_model.add_loss(loss)
 
         # Add L2 Regularization
         # Skip gamma and beta weights of batch normalization layers.
@@ -2211,6 +2226,7 @@ class MaskRCNN():
             loss = (
                 tf.reduce_mean(layer.output, keepdims=True)
                 * self.config.LOSS_WEIGHTS.get(name, 1.))
+            #mwm 0,1
             self.keras_model.metrics_tensors = []
             self.keras_model.metrics_tensors.append(loss)
 
@@ -2376,18 +2392,47 @@ class MaskRCNN():
             workers = 0
         else:
             workers = multiprocessing.cpu_count()
-
-        self.keras_model.fit_generator(
-            train_generator,
-            initial_epoch=self.epoch,
+            
+        #mwm 2
+        # workers = 1
+        # use_multiprocessing = False
+        
+        # self.keras_model.fit_generator(
+            # train_generator,
+            # initial_epoch=self.epoch,
+            # epochs=epochs,
+            # # steps_per_epoch=self.config.steps_per_epoch,
+            # steps_per_epoch=self.config.STEPS_PER_EPOCH,
+            # callbacks=callbacks,
+            # validation_data=val_generator,
+            # # validation_steps=self.config.validation_steps,
+            # validation_steps=self.config.VALIDATION_STEPS,
+            # max_queue_size=100,
+            # workers=workers,
+            # # use_multiprocessing=True,
+            # #mwm 1,1
+            # use_multiprocessing=False,
+        # )
+        #mwm 12,21
+        self.keras_model.fit(
+            x=train_generator,
+            y=None,
+            batch_size=None,
             epochs=epochs,
-            steps_per_epoch=self.config.STEPS_PER_EPOCH,
+            verbose=1,
             callbacks=callbacks,
+            validation_split=0.0,
             validation_data=val_generator,
+            shuffle=True,
+            class_weight=None,
+            sample_weight=None,
+            initial_epoch=self.epoch,
+            steps_per_epoch=self.config.STEPS_PER_EPOCH,
             validation_steps=self.config.VALIDATION_STEPS,
+            validation_freq=1,
             max_queue_size=100,
             workers=workers,
-            use_multiprocessing=True,
+            use_multiprocessing=False,
         )
         self.epoch = max(self.epoch, epochs)
 
@@ -2883,13 +2928,13 @@ def denorm_boxes_graph(boxes, shape):
     shift = tf.constant([0., 0., 1., 1.])
     return tf.cast(tf.round(tf.multiply(boxes, scale) + shift), tf.int32)
 
-class AnchorsLayer(keras.layers.Layer):
+class AnchorsLayer(tf.keras.layers.Layer):
     def __init__(self, name="anchors", **kwargs):
         super(AnchorsLayer, self).__init__(name=name, **kwargs)
 
     def call(self, anchor):
         return anchor
 
-    def get_config(self):
+    def get_config(self) :
         config = super(AnchorsLayer, self).get_config()
         return config

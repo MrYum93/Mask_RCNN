@@ -11,8 +11,10 @@ import matplotlib.pyplot as plt
 import xml.etree.ElementTree as ET
 import json
 import cv2
-import tensorflow.compat.v1 as tf
-tf.disable_v2_behavior() 
+import tensorflow as tf
+#import tensorflow.compat.v1 as tf
+#tf.disable_v2_behavior()
+#tf.compat.v1.placeholder()
 
 # Root directory of the project
 ROOT_DIR = os.path.abspath("../")
@@ -29,7 +31,8 @@ sys.path.append("samples/coco/")  # To find local version
 import coco
 
 # Directory to save logs and trained model
-MODEL_DIR = os.path.join(ROOT_DIR, "Mask_RCNN/logs")
+MODEL_DIR = os.path.join(ROOT_DIR, "Mask_RCNN\logs")
+print("model dir: {}".format(MODEL_DIR))
 
 # Local path to trained weights file
 COCO_MODEL_PATH = os.path.join(ROOT_DIR, "Mask_RCNN/mask_rcnn_coco.h5")
@@ -168,8 +171,8 @@ print('Test: %d' % len(dataset_test.image_ids))
 #     mask, class_ids = dataset_train.load_mask(image_id)
 #     visualize.display_top_masks(image, mask, class_ids, dataset_train.class_names)
 
-config = Config()
-config.display()
+# config = Config()
+# config.display()
 
 
 class shipDetectConfig(Config):
@@ -178,7 +181,7 @@ class shipDetectConfig(Config):
 
     GPU_COUNT = 1
     IMAGES_PER_GPU = 1
-    # STEPS_PER_EPOCH = 50
+    STEPS_PER_EPOCH = 2000
 
     # IMAGE_MAX_DIM = 640
     # IMAGE_MIN_DIM = 400
@@ -188,14 +191,14 @@ class shipDetectConfig(Config):
 config = shipDetectConfig()
 config.display()
 
-train_flag = True
+train_flag = False
 
 if train_flag:
     # Create model in training mode
     model = modellib.MaskRCNN(mode="training", config=config, model_dir=MODEL_DIR)
 
     # Which weights to start with?
-    init_with = "coco"  # imagenet, coco, or last
+    init_with = "last"  # imagenet, coco, or last
 
     if init_with == "imagenet":
         model.load_weights(model.get_imagenet_weights(), by_name=True)
@@ -204,7 +207,8 @@ if train_flag:
         # are different due to the different number of classes
         # See README for instructions to download the COCO weights
         model.load_weights(COCO_MODEL_PATH, by_name=True,
-                           exclude=["mrcnn_class_logits", "mrcnn_bbox_fc", "mrcnn_bbox", "mrcnn_mask"])
+                           exclude=["mrcnn_class_logits", "mrcnn_bbox_fc", 
+                                    "mrcnn_bbox", "mrcnn_mask"])
     elif init_with == "last":
         # Load the last model you trained and continue training
         model.load_weights(model.find_last(), by_name=True)
@@ -214,18 +218,19 @@ if train_flag:
     # layers. You can also pass a regular expression to select
     # which layers to train by name pattern.
     model.train(dataset_train, dataset_val,
-                learning_rate=config.LEARNING_RATE,
-                epochs=5, #  orig: 5
-                layers='heads')
+                learning_rate=config.LEARNING_RATE / 20,
+                epochs=200, #  orig: 5
+                # layers='heads')
+                layers='all')
 
     # Fine tune all layers
     # Passing layers="all" trains all layers. You can also
     # pass a regular expression to select which layers to
     # train by name pattern.
-    model.train(dataset_train, dataset_val,
-                learning_rate=config.LEARNING_RATE / 10,
-                epochs=10, #  orig: 10
-                layers="all")
+    # model.train(dataset_train, dataset_val,
+                # learning_rate=config.LEARNING_RATE,# / 10,
+                # epochs=1, #  orig: 10
+                # layers="all")
 
 
 class InferenceConfig(shipDetectConfig):
@@ -249,7 +254,6 @@ model_path = model.find_last()
 print("Loading weights from ", model_path)
 model.load_weights(model_path, by_name=True)
 
-
 #   Test on a random image from test
 image_id = random.choice(dataset_test.image_ids)
 #   Test on a random image from val #ORIGINAL
@@ -268,7 +272,6 @@ log("image_meta", image_meta)
 log("gt_class_id", gt_class_id)
 log("gt_bbox", gt_bbox)
 log("gt_mask", gt_mask)
-
 
 visualize.display_instances(original_image, gt_bbox, gt_mask, gt_class_id,
                             dataset_train.class_names, figsize=(8, 8))
